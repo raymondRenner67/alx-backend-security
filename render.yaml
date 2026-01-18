@@ -1,0 +1,102 @@
+# Render.com Build and Deploy Configuration
+# https://render.com/docs/blueprint-spec
+
+services:
+  # Web Service
+  - type: web
+    name: alx-backend-security
+    env: python
+    region: oregon
+    plan: free
+    branch: main
+    buildCommand: "./render_build.sh"
+    startCommand: "gunicorn wsgi:application --bind 0.0.0.0:$PORT --workers 4"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DJANGO_SETTINGS_MODULE
+        value: settings_prod
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: False
+      - key: USE_POSTGRES
+        value: True
+      - key: DATABASE_URL
+        fromDatabase:
+          name: alx-backend-security-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: alx-backend-security-redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        value: amqp://guest:guest@rabbitmq:5672//
+  
+  # Celery Worker
+  - type: worker
+    name: alx-backend-security-worker
+    env: python
+    region: oregon
+    plan: free
+    branch: main
+    buildCommand: "./render_build.sh"
+    startCommand: "celery -A celery worker --loglevel=info"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DJANGO_SETTINGS_MODULE
+        value: settings_prod
+      - key: SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: alx-backend-security-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: alx-backend-security-redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        value: amqp://guest:guest@rabbitmq:5672//
+  
+  # Celery Beat (Scheduler)
+  - type: worker
+    name: alx-backend-security-beat
+    env: python
+    region: oregon
+    plan: free
+    branch: main
+    buildCommand: "./render_build.sh"
+    startCommand: "celery -A celery beat --loglevel=info"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DJANGO_SETTINGS_MODULE
+        value: settings_prod
+      - key: SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: alx-backend-security-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: alx-backend-security-redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        value: amqp://guest:guest@rabbitmq:5672//
+
+databases:
+  - name: alx-backend-security-db
+    plan: free
+    databaseName: alx_backend_security
+    user: alx_user
+
+redis:
+  - name: alx-backend-security-redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru
